@@ -4,8 +4,10 @@ import pygame
 import os
 import random
 
+
 # تنظیمات اولیه
 pygame.init()
+
 
 # ابعاد صفحه
 WIDTH, HEIGHT = 900, 500
@@ -17,6 +19,7 @@ WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 BLUE = (0, 0, 255)
 RED = (255, 0, 0)
+GREEN = (0, 255, 0)
 
 # FPS و سرعت
 FPS = 60
@@ -45,43 +48,53 @@ EXPLOSION = pygame.transform.scale(EXPLOSION_IMAGE, (50, 50))
 # بارگذاری صدا
 pygame.mixer.init()
 laser_sound = pygame.mixer.Sound(os.path.join("Assets", "laser_gun.mp3"))
+win_sound = pygame.mixer.Sound(os.path.join("Assets", "win.mp3"))
+lose_sound = pygame.mixer.Sound(os.path.join("Assets", "lose.wav"))
+explosion_sound = pygame.mixer.Sound(os.path.join(
+    "Assets", "explosion_sound.wav"))  # فرض کردم این فایل هست
 
-# تابع برای رسم عناصر در صفحه
+# بارگذاری مدل‌های گلوله
+bullet_kind_1 = pygame.image.load(os.path.join("Assets", "bullet1.png"))
+bullet_kind_2 = pygame.image.load(os.path.join("Assets", "bullet2.png"))
+
+bullet_kind_1 = pygame.transform.scale(bullet_kind_1, (15, 5))
+bullet_kind_2 = pygame.transform.scale(bullet_kind_2, (15, 5))
+
+
+def get_bullet_kind():
+    return random.choice([bullet_kind_1, bullet_kind_2])
 
 
 def draw_window(blue, red, blue_bullets, red_bullets, blue_health, red_health):
-    WIN.fill(WHITE)
     WIN.blit(BACKGROUND_IMAGE, (0, 0))
-
     pygame.draw.line(WIN, BLACK, (WIDTH // 2, 0), (WIDTH // 2, HEIGHT), 2)
 
-    # نمایش سلامت
-    font = pygame.font.Font(None, 30)
-    blue_health_text = font.render(f"Health: {blue_health}", True, BLUE)
-    red_health_text = font.render(f"Health: {red_health}", True, RED)
+    # نمایش جان‌ها به صورت HUD بالا
+    font = pygame.font.SysFont("Arial", 28, bold=True)
+    blue_health_text = font.render(f"Blue Health: {blue_health}", True, BLUE)
+    red_health_text = font.render(f"Red Health: {red_health}", True, RED)
     WIN.blit(blue_health_text, (10, 10))
     WIN.blit(red_health_text, (WIDTH - red_health_text.get_width() - 10, 10))
 
+    # کشیدن سفینه‌ها
     WIN.blit(BLUE_SPACESHIP, (blue.x, blue.y))
     WIN.blit(RED_SPACESHIP, (red.x, red.y))
 
-    for bullet in blue_bullets:
-        pygame.draw.rect(WIN, BLUE, bullet)
+    # کشیدن گلوله‌ها همراه مدل گلوله
+    for bullet, kind in blue_bullets:
+        WIN.blit(kind, (bullet.x, bullet.y))
 
-    for bullet in red_bullets:
-        pygame.draw.rect(WIN, RED, bullet)
+    for bullet, kind in red_bullets:
+        WIN.blit(kind, (bullet.x, bullet.y))
 
     pygame.display.update()
-
-# تابع نمایش انفجار
 
 
 def draw_explosion(x, y):
     WIN.blit(EXPLOSION, (x, y))
+    explosion_sound.play()
     pygame.display.update()
     pygame.time.delay(100)
-
-# کنترل حرکت سفینه آبی
 
 
 def blue_movement(keys, blue):
@@ -94,8 +107,6 @@ def blue_movement(keys, blue):
     if keys[pygame.K_s] and blue.y + VEL + blue.height < HEIGHT:
         blue.y += VEL
 
-# کنترل حرکت سفینه قرمز
-
 
 def red_movement(red, blue):
     if red.y < blue.y and red.y + VEL + red.height < HEIGHT:
@@ -103,34 +114,46 @@ def red_movement(red, blue):
     elif red.y > blue.y and red.y - VEL > 0:
         red.y -= VEL
 
-# مدیریت گلوله‌ها
-
 
 def handle_bullets(blue_bullets, red_bullets, blue, red):
-    for bullet in blue_bullets:
+    for bullet, kind in blue_bullets[:]:
         bullet.x += BULLET_VEL
         if red.colliderect(bullet):
             draw_explosion(red.x, red.y)
             pygame.event.post(pygame.event.Event(RED_HIT))
-            blue_bullets.remove(bullet)
+            blue_bullets.remove((bullet, kind))
         elif bullet.x > WIDTH:
-            blue_bullets.remove(bullet)
+            blue_bullets.remove((bullet, kind))
 
-    for bullet in red_bullets:
+    for bullet, kind in red_bullets[:]:
         bullet.x -= BULLET_VEL
         if blue.colliderect(bullet):
             draw_explosion(blue.x, blue.y)
             pygame.event.post(pygame.event.Event(BLUE_HIT))
-            red_bullets.remove(bullet)
+            red_bullets.remove((bullet, kind))
         elif bullet.x < 0:
-            red_bullets.remove(bullet)
+            red_bullets.remove((bullet, kind))
 
-# حلقه اصلی بازی
+
+def draw_winner(text, blue, red, blue_bullets, red_bullets, blue_health, red_health):
+    draw_window(blue, red, blue_bullets, red_bullets,
+                blue_health, red_health)  # بک‌گراند کامل بازی
+    font = pygame.font.Font(None, 60)
+    rendered_text = font.render(text, True, WHITE)
+    instruction_font = pygame.font.Font(None, 30)
+    restart_text = instruction_font.render(
+        "Press R to Restart or Q to Quit", True, WHITE)
+
+    WIN.blit(rendered_text, (WIDTH // 2 -
+             rendered_text.get_width() // 2, HEIGHT // 2 - 50))
+    WIN.blit(restart_text, (WIDTH // 2 -
+             restart_text.get_width() // 2, HEIGHT // 2 + 20))
+    pygame.display.update()
 
 
 def main():
-    blue = pygame.Rect(100, 200, 50, 40)
-    red = pygame.Rect(700, 200, 50, 40)
+    blue = pygame.Rect(100, 200, 70, 50)  # اندازه سفینه درست شده
+    red = pygame.Rect(700, 200, 70, 50)
 
     blue_bullets = []
     red_bullets = []
@@ -140,19 +163,45 @@ def main():
 
     clock = pygame.time.Clock()
     run = True
+    game_over = False
+    winner_text = ""
+
+    winner_shown = False
+
     while run:
         clock.tick(FPS)
+
+        if game_over:
+            if not winner_shown:
+                draw_winner(winner_text, blue, red, blue_bullets,
+                            red_bullets, blue_health, red_health)
+                winner_shown = True
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    run = False
+                    break
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_r:
+                        main()
+                        return
+                    elif event.key == pygame.K_q:
+                        run = False
+                        break
+            continue
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
                 break
+
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE and len(blue_bullets) < MAX_BULLETS:
-                    bullet = pygame.Rect(
-                        blue.x + blue.width, blue.y + blue.height // 2 - 2, 10, 5
+                    bullet_rect = pygame.Rect(
+                        blue.x + blue.width, blue.y + blue.height // 2 - 2, 15, 5
                     )
-                    blue_bullets.append(bullet)
+                    bullet_image = get_bullet_kind()
+                    blue_bullets.append((bullet_rect, bullet_image))
                     laser_sound.play()
 
             if event.type == BLUE_HIT:
@@ -163,13 +212,14 @@ def main():
 
         keys = pygame.key.get_pressed()
         blue_movement(keys, blue)
-
         red_movement(red, blue)
+
         if len(red_bullets) < MAX_BULLETS and random.randint(1, 60) == 1:
-            bullet = pygame.Rect(
-                red.x, red.y + red.height // 2 - 2, 10, 5
+            bullet_rect = pygame.Rect(
+                red.x, red.y + red.height // 2 - 2, 15, 5
             )
-            red_bullets.append(bullet)
+            bullet_image = get_bullet_kind()
+            red_bullets.append((bullet_rect, bullet_image))
 
         handle_bullets(blue_bullets, red_bullets, blue, red)
         draw_window(blue, red, blue_bullets,
@@ -177,18 +227,13 @@ def main():
 
         if blue_health <= 0:
             winner_text = "Red Wins!"
-            break
+            lose_sound.play()
+            game_over = True
 
         if red_health <= 0:
             winner_text = "Blue Wins!"
-            break
-
-    font = pygame.font.Font(None, 60)
-    text = font.render(winner_text, True, WHITE)
-    WIN.blit(text, (WIDTH // 2 - text.get_width() //
-             2, HEIGHT // 2 - text.get_height() // 2))
-    pygame.display.update()
-    pygame.time.delay(3000)
+            win_sound.play()
+            game_over = True
 
     pygame.quit()
 
